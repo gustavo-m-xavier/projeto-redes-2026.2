@@ -17,7 +17,10 @@ export function StatCard({
 }) {
   return (
     <article className={`stat-card ${accent}`}>
-      <div className="stat-top"><span>{label}</span><span className="stat-icon">{icon}</span></div>
+      <div className="stat-top">
+        <span>{label}</span>
+        <span className="stat-icon">{icon}</span>
+      </div>
       <strong>{value}</strong>
       <small>{note}</small>
     </article>

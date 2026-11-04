@@ -21,7 +21,10 @@ export function formatTime(timestamp: number): string {
 }
 
 export function buildChartData(telemetry: Telemetry) {
-  const buckets = new Map<number, { timestamp: number; tcp: number; udp: number; other: number }>();
+  const buckets = new Map<
+    number,
+    { timestamp: number; tcp: number; udp: number; other: number }
+  >();
   const now = Math.floor(Date.now() / 1000);
   for (let second = now - 29; second <= now; second += 1) {
     buckets.set(second, { timestamp: second, tcp: 0, udp: 0, other: 0 });
