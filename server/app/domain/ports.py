@@ -1,0 +1,43 @@
+from typing import Protocol
+
+
+class TelemetryPort(Protocol):
+    def register_packet(self, packet: dict) -> None: ...
+
+    def snapshot(self) -> dict: ...
+
+
+class PacketCapturePort(Protocol):
+    @property
+    def last_error(self) -> str | None: ...
+
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+    def get_packets(
+        self,
+        ip: str | None = None,
+        port: int | None = None,
+        protocol: str | None = None,
+    ) -> list[dict]: ...
+
+
+class NetworkMonitorPort(Protocol):
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+    def snapshot(self) -> dict: ...
+
+
+class FirewallPort(Protocol):
+    def block_port(self, port: int) -> dict: ...
+
+    def unblock_port(self, port: int) -> dict: ...
+
+    def list_rules(self) -> list[dict]: ...
+
+
+class PacketAnalyzerPort(Protocol):
+    def analyze(self, packet: object) -> dict | None: ...
