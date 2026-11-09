@@ -1,16 +1,20 @@
+import platform
 import shutil
 
 from app.domain.ports import FirewallPort
 from app.infrastructure.firewall.iptables_backend import IptablesBackend
 from app.infrastructure.firewall.nftables_backend import NftablesBackend
+from app.infrastructure.firewall.windows_firewall_backend import WindowsFirewallBackend
 
 
-class LinuxFirewallManager:
+class FirewallManager:
     def __init__(self, backend: FirewallPort | None = None) -> None:
         self._backend = backend or self._select_backend()
 
     @staticmethod
     def _select_backend() -> FirewallPort:
+        if platform.system() == "Windows":
+            return WindowsFirewallBackend()
         if shutil.which("iptables"):
             return IptablesBackend()
         if shutil.which("nft"):

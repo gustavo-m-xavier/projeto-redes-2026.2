@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from app.infrastructure.firewall.iptables_backend import IptablesBackend
-from app.infrastructure.firewall.linux_firewall_manager import LinuxFirewallManager
+from app.infrastructure.firewall.firewall_manager import FirewallManager
 
 
 class FirewallManagerTests(unittest.TestCase):
@@ -30,7 +30,7 @@ class FirewallManagerTests(unittest.TestCase):
         self.assertIn("redes-monitor:8080", run.call_args.args[0])
 
     def test_rejects_invalid_port_without_running_firewall_command(self):
-        manager = LinuxFirewallManager(backend=IptablesBackend())
+        manager = FirewallManager(backend=IptablesBackend())
 
         with patch.object(IptablesBackend, "block_port") as run:
             with self.assertRaises(ValueError):

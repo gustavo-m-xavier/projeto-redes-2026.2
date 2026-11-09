@@ -9,7 +9,7 @@ from app.application.monitoring_service import MonitoringService, ServerInfo
 from app.config import settings
 from app.infrastructure.capture.scapy_packet_analyzer import ScapyPacketAnalyzer
 from app.infrastructure.capture.scapy_packet_capture import ScapyPacketCapture
-from app.infrastructure.firewall.linux_firewall_manager import LinuxFirewallManager
+from app.infrastructure.firewall.firewall_manager import FirewallManager
 from app.infrastructure.monitoring.psutil_network_monitor import PsutilNetworkMonitor
 from app.infrastructure.telemetry.in_memory_telemetry import InMemoryTelemetry
 from app.presentation.http.api import create_app
@@ -24,7 +24,7 @@ packet_capture = ScapyPacketCapture(
     telemetry=telemetry,
 )
 network_monitor = PsutilNetworkMonitor()
-firewall_backend = LinuxFirewallManager()
+firewall_backend = FirewallManager()
 monitoring_service = MonitoringService(
     ServerInfo(settings.server_host, settings.server_port, settings.network_interface),
     telemetry,
