@@ -12,7 +12,7 @@ O código segue uma separação em camadas para manter regras de aplicação ind
 
 - `server/app/domain`: contratos (ports) consumidos pela aplicação.
 - `server/app/application`: casos de uso de monitoramento, controle remoto e firewall.
-- `server/app/infrastructure`: adaptadores Scapy, Psutil, telemetria em memória e backends iptables/nftables.
+- `server/app/infrastructure`: adaptadores Scapy, Psutil, telemetria em memória e backends iptables/nftables/Windows Defender Firewall.
 - `server/app/presentation`: API HTTP/WebSocket e servidor TCP.
 - `server/app/main.py`: composition root que instancia e conecta os adaptadores.
 - `client/app/application`: fluxo de demonstração e contratos do cliente.
@@ -29,9 +29,11 @@ Python 3.11, Scapy, Psutil, FastAPI, Uvicorn, sockets TCP, React, TypeScript, Vi
 
 ## Requisitos
 
-- Docker Engine e Docker Compose nas máquinas Linux.
-- Máquina B Linux, com uma interface de rede para captura.
+- Docker Engine e Docker Compose para executar o servidor em Linux.
+- Máquina B Linux ou Windows; a captura de pacotes exige uma interface de rede disponível ao Scapy.
+- No Windows, instale o Npcap e execute o servidor em um terminal elevado para permitir alterações no Windows Defender Firewall.
 - Acesso à rede entre as máquinas nas portas TCP configuradas em `SERVER_PORT` e `API_PORT`.
+- O serviço em `FIREWALL_DEMO_PORT` deve estar escutando e acessível antes da demonstração; por padrão, essa variável usa `API_PORT`.
 - Para executar localmente o frontend em desenvolvimento: Node.js 20 ou superior.
 
 ## Executar em dois computadores
@@ -88,9 +90,55 @@ O cliente executa a demonstração de tráfego e controle uma vez e permanece at
 5. Da máquina A, abra `http://<IP-DA-MAQUINA-B>:8000/health` no navegador ou execute `curl http://<IP-DA-MAQUINA-B>:8000/health`. A resposta esperada contém `"status":"ok"`.
 6. Abra `http://<IP-DA-MAQUINA-B>:8000` para o dashboard. Use **Configurar token** no painel e informe o `AUTH_TOKEN`.
 7. Na máquina A, execute `docker compose up --build client` e observe a saída do cliente. No dashboard da máquina B, confira os totais de tráfego, os pacotes TCP e as conexões ao servidor.
-8. Para testar o gerenciamento do firewall, primeiro confirme que bloquear TCP/8080 é seguro no host B e use uma porta de teste sem serviço importante. É possível executar o teste pelo dashboard, que oferece bloqueio e liberação separados.
+8. A demonstração bloqueia temporariamente o serviço da porta `FIREWALL_DEMO_PORT` (por padrão, a API em TCP/8000), testa o bloqueio e a restauração e encerra com erro se algum resultado não for comprovado. A porta de controle TCP/9000 permanece separada para que a máquina A possa enviar o comando de liberação.
 
-O cliente também tenta bloquear TCP/8080 por cerca de dois segundos e depois liberar a regra automaticamente. Essa operação afeta o **host B**, não apenas o container. Não execute o cliente se a porta 8080 estiver em uso por um serviço que precise continuar acessível. Não interrompa o cliente durante esse intervalo; depois confirme no dashboard que não há regra ativa.
+Essa operação afeta o **host B**, não apenas o container. O serviço de demonstração fica inacessível por cerca de dois segundos. Não escolha uma porta com serviço crítico; não interrompa o cliente enquanto a regra estiver aplicada. Se a remoção falhar ou o cliente for encerrado à força, remova a regra gerenciada pelo dashboard ou pelo firewall do host.
+
+### Servidor nativo no Windows
+
+Docker Compose continua sendo a opção documentada para o servidor Linux. Para executar o servidor diretamente no Windows, instale Python 3.11, Npcap (com suporte compatível com WinPcap) e as dependências. Descubra a interface reconhecida pelo Scapy com `py -c "from scapy.all import get_if_list; print(get_if_list())"`. Abra PowerShell **como administrador**, configure `.env` na raiz do projeto e inicie:
+
+```powershell
+cd server
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:SERVER_HOST = "0.0.0.0"
+$env:SERVER_PORT = "9000"
+$env:API_PORT = "8000"
+$env:AUTH_TOKEN = "use-o-mesmo-token-do-cliente"
+$env:NETWORK_INTERFACE = "\Device\NPF_{GUID-da-interface}"
+python -m app.main
+```
+
+O nome de interface deve corresponder a um dos nomes retornados pelo Scapy; substitua o exemplo pelo valor real. O servidor usa `New-NetFirewallRule`/`Remove-NetFirewallRule` via PowerShell e requer privilégios administrativos para bloquear/liberar portas. Autorize previamente, conforme o perfil de rede usado, o tráfego de entrada TCP nas portas de controle e API (9000 e 8000 no exemplo). Não bloqueie a porta de controle. O Windows Defender Firewall aplica a regra de bloqueio a todas as interfaces e perfis.
+
+O cliente pode rodar na máquina A em Windows ou Linux. No Windows, configure e inicie-o em PowerShell:
+
+```powershell
+cd client
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:SERVER_HOST = "<IP-da-maquina-B>"
+$env:SERVER_PORT = "9000"
+$env:API_PORT = "8000"
+$env:FIREWALL_DEMO_PORT = "8000"
+$env:AUTH_TOKEN = "use-o-mesmo-token-do-servidor"
+python -m app.main
+```
+
+O cliente valida que o serviço-alvo está acessível antes de pedir o bloqueio.
+
+## Cobertura dos cinco pontos avaliados
+
+1. **Disponibilidade do receptor:** o servidor cria um socket TCP daemon em `SERVER_HOST:SERVER_PORT` (padrão `0.0.0.0:9000`) e atende conexões em threads. No Windows, mantenha o processo em execução e permita a porta no firewall.
+2. **Recepção e validação:** o receptor aceita uma linha JSON limitada a 4096 bytes; `ControlService` valida objeto, ação e token, e `FirewallService` valida a porta entre 1 e 65535. A resposta JSON confirma a operação ou informa erro.
+3. **Regra dinâmica de bloqueio:** a ação `block` aplica uma regra TCP de entrada para a porta solicitada. Linux usa iptables/nftables; Windows usa `New-NetFirewallRule` com nome gerenciado pela aplicação. A API HTTP e o dashboard usam o mesmo serviço de firewall.
+4. **Comprovação do descarte:** antes de bloquear, o cliente confirma que há uma conexão TCP possível para `FIREWALL_DEMO_PORT`; após receber sucesso, tenta novas conexões até confirmar que falharam. O cliente aborta sem alterar o firewall se o serviço já estiver inacessível.
+5. **Restauração:** o cliente envia `unblock` pelo canal de controle separado, confirma a remoção e tenta novas conexões até comprovar que o serviço voltou. Qualquer falha de aplicação, descarte ou restauração é informada como erro; a regra é removida em bloco `finally` quando a aplicação do bloqueio foi confirmada.
+
+Para a comprovação padrão, a API em `API_PORT` é o serviço alvo. Se `FIREWALL_DEMO_PORT` for configurada para outra porta (por exemplo, 80), um serviço TCP precisa estar escutando nela antes de iniciar o cliente; o canal de controle deve continuar em outra porta. No log do cliente, procure as mensagens “Comprovado: novas conexões ... foram bloqueadas” e “... foram restauradas”.
 
 ### O que esperar da captura
 
@@ -121,6 +169,7 @@ O Dockerfile do servidor já compila o dashboard e o inclui no container final.
 
 ```bash
 PYTHONPATH=server python -m unittest discover -s server/tests -v
+PYTHONPATH=client python -m unittest discover -s client/tests -v
 cd dashboard && npm run build && npm audit
 ```
 
@@ -130,7 +179,7 @@ cd dashboard && npm run build && npm audit
 - PPS representa a média de pacotes por segundo na janela recente de telemetria.
 - O gráfico apresenta os bytes observados por segundo, separados em TCP e UDP, no histórico disponível.
 - HTTP é identificado somente quando há payload HTTP legível; conteúdo HTTPS não é descriptografado nem interpretado.
-- Captura e gerenciamento de firewall dependem das capabilities e do suporte do kernel/host Linux. Sem permissão, o dashboard informa o erro da captura e as operações de firewall retornam uma falha explícita.
+- Captura e gerenciamento de firewall dependem das permissões e do suporte do host. No Linux, o container precisa de `NET_RAW` e `NET_ADMIN`; no Windows, instale Npcap e execute com privilégios administrativos para gerenciar regras. Falhas são retornadas explicitamente.
 
 ## Rotas principais
 
