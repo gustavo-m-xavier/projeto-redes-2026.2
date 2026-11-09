@@ -15,6 +15,8 @@ def main() -> None:
     runner = DemoRunner(
         server_client=ServerControlClient(settings),
         traffic_generator=TrafficGenerator(settings),
+        firewall_demo_port=settings.firewall_demo_port,
+        server_control_port=settings.server_port,
     )
     runner.run_once()
     runner.keep_alive()

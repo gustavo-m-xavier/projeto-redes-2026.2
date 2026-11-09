@@ -20,3 +20,10 @@ class TrafficGenerator:
     def generate_dns_lookup() -> dict:
         socket.getaddrinfo("example.com", 80)
         return {"status": "ok", "domain": "example.com"}
+
+    def is_tcp_port_open(self, port: int, timeout: float = 1.0) -> bool:
+        try:
+            with socket.create_connection((self._settings.server_host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
