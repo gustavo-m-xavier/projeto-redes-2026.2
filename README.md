@@ -94,6 +94,98 @@ O cliente executa a demonstração de tráfego e controle uma vez e permanece at
 
 Essa operação afeta o **host B**, não apenas o container. O serviço de demonstração fica inacessível por cerca de dois segundos. Não escolha uma porta com serviço crítico; não interrompa o cliente enquanto a regra estiver aplicada. Se a remoção falhar ou o cliente for encerrado à força, remova a regra gerenciada pelo dashboard ou pelo firewall do host.
 
+### Servidor Docker no WSL2 acessado pela rede local
+
+Quando o servidor roda em Docker dentro do WSL2 no computador Windows B, o IP do WSL (por exemplo, `172.31.x.x`) normalmente não é o endereço que o computador A usa. O computador A conecta ao IPv4 da rede local do Windows B; o Windows encaminha as portas para o IP atual do WSL.
+
+Neste exemplo:
+
+- **Máquina A — cliente:** `192.168.15.11`
+- **Máquina B — Windows que executa o servidor:** `192.168.15.17`
+- **Máquina B — WSL2:** usle o endereço atua da interface `eth0`; ele pode mudar quando o WSL reiniciar.
+
+Substitua os IPs de exemplo pelos endereços atuais da sua rede. O IP da Máquina B deve ser obtido no Windows com `ipconfig` (adaptador Wi-Fi/Ethernet); o IP do WSL deve ser obtido dentro do WSL. Não use `127.0.0.1`, `docker0` nem o IP da interface virtual do Windows `vEthernet (WSL)` como endereço da Máquina B.
+
+1. **Na Máquina B, inicie o servidor dentro do WSL** e confirme que ele está ouvindo nas portas 8000 e 9000:
+
+   ```bash
+   docker compose up --build -d server
+   docker compose ps
+   ss -lnt | grep -E ':(8000|9000)\b'
+   ```
+
+   Anote o IP atual da interface WSL `eth0`:
+
+   ```bash
+   ip -4 -o addr show dev eth0
+   ```
+
+   Na saída, use o endereço IPv4 antes de `/` (por exemplo, se aparecer `172.31.140.225/20`, o IP do WSL é `172.31.140.225`).
+
+2. **Na Máquina B, abra o PowerShell como administrador.** Defina `$WslIp` com o IPv4 anotado no passo anterior (o endereço abaixo é só um exemplo), remova encaminhamentos anteriores dessas portas, se houver, e crie os novos:
+
+   ```powershell
+   $WslIp = "172.31.140.225"
+   netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=8000
+   netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=9000
+   netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8000 connectaddress=$WslIp connectport=8000
+   netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9000 connectaddress=$WslIp connectport=9000
+   ```
+
+   As mensagens de erro dos comandos `delete` podem ser ignoradas se ainda não existia encaminhamento. O encaminhamento precisa ser atualizado se o IP do WSL mudar.
+
+3. **Na Máquina B, permita conexões TCP da Máquina A** no Firewall do Windows. Os comandos abaixo permitem somente o IP da Máquina A (`192.168.15.11`) nas portas da API/dashboard (8000) e de controle (9000):
+
+   ```powershell
+   Remove-NetFirewallRule -DisplayName "Sentinela API 8000" -ErrorAction SilentlyContinue
+   Remove-NetFirewallRule -DisplayName "Sentinela controle 9000" -ErrorAction SilentlyContinue
+   New-NetFirewallRule -DisplayName "Sentinela API 8000" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8000 -RemoteAddress 192.168.15.11 -Profile Any
+   New-NetFirewallRule -DisplayName "Sentinela controle 9000" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 9000 -RemoteAddress 192.168.15.11 -Profile Any
+   ```
+
+   Se o IP da Máquina A for diferente, substitua `192.168.15.11` nos dois comandos `New-NetFirewallRule`. Não é necessário liberar ping para o aplicativo funcionar; ping testa ICMP, enquanto o aplicativo usa TCP.
+
+   Se também quiser permitir que a **Máquina A** teste ping para a **Máquina B**, crie esta regra adicional no PowerShell administrador da Máquina B:
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "Ping da Maquina A 192.168.15.11" -Direction Inbound -Action Allow -Protocol ICMPv4 -IcmpType 8 -RemoteAddress 192.168.15.11 -Profile Any
+   ```
+
+   Essa regra só permite pedidos de ping da Máquina A para a Máquina B; não altera o acesso TCP do aplicativo.
+
+4. **Na Máquina B, teste o encaminhamento local** no PowerShell:
+
+   ```powershell
+   Test-NetConnection 127.0.0.1 -Port 8000
+   Test-NetConnection 127.0.0.1 -Port 9000
+   ```
+
+   Ambos devem mostrar `TcpTestSucceeded: True`.
+
+5. **Na Máquina A, teste o acesso pela rede**. No PowerShell:
+
+   ```powershell
+   Test-NetConnection 192.168.15.17 -Port 8000
+   Test-NetConnection 192.168.15.17 -Port 9000
+   ```
+
+   Se a Máquina A for Linux, pode testar a API com `curl http://192.168.15.17:8000/health` e as portas com `nc -vz 192.168.15.17 8000` e `nc -vz 192.168.15.17 9000`. Os testes TCP devem passar antes de iniciar o cliente.
+
+6. **Na Máquina A, configure o cliente** no `.env`, usando o IPv4 da Máquina B no Windows (não o IP do WSL), e inicie-o:
+
+   ```dotenv
+   SERVER_HOST=192.168.15.17
+   SERVER_PORT=9000
+   API_PORT=8000
+   AUTH_TOKEN=<o-mesmo-token-configurado-na-maquina-B>
+   ```
+
+   ```bash
+   docker compose up --build client
+   ```
+
+   O dashboard também fica acessível na Máquina A em `http://192.168.15.17:8000`. Se o servidor ou cliente for reiniciado com IPs diferentes, confira os endereços e atualize o encaminhamento/regra de firewall correspondente.
+
 ### Servidor nativo no Windows
 
 Docker Compose continua sendo a opção documentada para o servidor Linux. Para executar o servidor diretamente no Windows, instale Python 3.11, Npcap (com suporte compatível com WinPcap) e as dependências. Descubra a interface reconhecida pelo Scapy com `py -c "from scapy.all import get_if_list; print(get_if_list())"`. Abra PowerShell **como administrador**, configure `.env` na raiz do projeto e inicie:
