@@ -281,3 +281,14 @@ cd dashboard && npm run build && npm audit
 - `WS /ws` — telemetria, conexões, regras, estado da captura e pacotes recentes
 
 As operações remotas aceitam somente ações predefinidas e portas válidas. A liberação de regras é limitada a regras marcadas como gerenciadas pela aplicação.
+
+## Integrantes
+
+- 2412130049	Charles Oliveira dos Santos	
+- 2322130020	Diego Furtado Amorim	
+- 2412130016	Felipe Oliveira Cunha	
+- 2412140024	Gustavo Marques Xavier	
+- 2412130005	Isadora Batista Alves	
+- 2312130063	João Marcos Santos e Carvalho	
+- 2412130138	Sofia Maria Canabarro Dios Barbosa 	
+
