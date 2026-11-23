@@ -2,6 +2,20 @@
 
 Sistema acadêmico para acompanhar tráfego e conexões da máquina servidora e gerenciar regras de firewall autorizadas. O servidor e o cliente podem ser executados em computadores físicos diferentes na mesma rede.
 
+## Sumário
+
+- [Arquitetura](#arquitetura)
+- [Tecnologias](#tecnologias)
+- [Requisitos](#requisitos)
+- [Executar em dois computadores](#executar-em-dois-computadores)
+- [Teste entre as duas máquinas](#teste-entre-as-duas-máquinas)
+- [Cobertura dos cinco pontos avaliados](#cobertura-dos-cinco-pontos-avaliados)
+- [Desenvolvimento do dashboard](#desenvolvimento-do-dashboard)
+- [Testes](#testes)
+- [Dados e interpretação](#dados-e-interpretação)
+- [Rotas principais](#rotas-principais)
+- [Integrantes](#integrantes)
+
 ## Arquitetura
 
 - **Máquina A — cliente:** gera requisições HTTP e DNS e envia operações de controle por TCP/JSON.
@@ -102,7 +116,7 @@ Neste exemplo:
 
 - **Máquina A — cliente:** `192.168.15.11`
 - **Máquina B — Windows que executa o servidor:** `192.168.15.17`
-- **Máquina B — WSL2:** usle o endereço atua da interface `eth0`; ele pode mudar quando o WSL reiniciar.
+- **Máquina B — WSL2:** use o endereço atual da interface `eth0`; ele pode mudar quando o WSL reiniciar.
 
 Substitua os IPs de exemplo pelos endereços atuais da sua rede. O IP da Máquina B deve ser obtido no Windows com `ipconfig` (adaptador Wi-Fi/Ethernet); o IP do WSL deve ser obtido dentro do WSL. Não use `127.0.0.1`, `docker0` nem o IP da interface virtual do Windows `vEthernet (WSL)` como endereço da Máquina B.
 
@@ -284,11 +298,12 @@ As operações remotas aceitam somente ações predefinidas e portas válidas. A
 
 ## Integrantes
 
-- 2412130049	Charles Oliveira dos Santos	
-- 2322130020	Diego Furtado Amorim	
-- 2412130016	Felipe Oliveira Cunha	
-- 2412140024	Gustavo Marques Xavier	
-- 2412130005	Isadora Batista Alves	
-- 2312130063	João Marcos Santos e Carvalho	
-- 2412130138	Sofia Maria Canabarro Dios Barbosa 	
-
+| Matrícula  | Nome                               |
+| ---------- | ---------------------------------- |
+| 2412130049 | Charles Oliveira dos Santos        |
+| 2322130020 | Diego Furtado Amorim               |
+| 2412130016 | Felipe Oliveira Cunha              |
+| 2412140024 | Gustavo Marques Xavier             |
+| 2412130005 | Isadora Batista Alves              |
+| 2312130063 | João Marcos Santos e Carvalho      |
+| 2412130138 | Sofia Maria Canabarro Dios Barbosa |
